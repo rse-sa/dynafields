@@ -1,0 +1,43 @@
+{
+    "name": "rse/dynafields",
+    "description": "Dynamic custom fields for any Eloquent model — plug-and-play",
+    "type": "library",
+    "license": "MIT",
+    "autoload": {
+        "psr-4": {
+            "RSE\\DynaFields\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "RSE\\DynaFields\\Tests\\": "tests/"
+        }
+    },
+    "require": {
+        "php": "^8.2",
+        "laravel/framework": "^11.0|^12.0",
+        "livewire/livewire": "^4.0",
+        "spatie/laravel-translatable": "^6.0"
+    },
+    "require-dev": {
+        "orchestra/testbench": "^9.0",
+        "pestphp/pest": "^3.0"
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "RSE\\DynaFields\\DynaFieldsServiceProvider"
+            ]
+        }
+    },
+    "scripts": {
+        "test": "vendor/bin/pest"
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true,
+    "config": {
+        "allow-plugins": {
+            "pestphp/pest-plugin": true
+        }
+    }
+}
