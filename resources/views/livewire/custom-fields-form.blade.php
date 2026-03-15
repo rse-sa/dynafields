@@ -32,7 +32,7 @@
                             @endforeach
                         </select>
 
-                    @elseif($field->type === 'boolean')
+                    @elseif($field->type === 'boolean' || $field->type === 'checkbox')
                         <input
                             type="checkbox"
                             name="{{ $inputName }}"
@@ -51,6 +51,32 @@
                             class="w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
                             rows="3"
                         >{{ $currentValue }}</textarea>
+
+                    @elseif($field->type === 'file')
+                        @if($currentValue)
+                            @if(config('dynafields.file_preview_view'))
+                                @include(config('dynafields.file_preview_view'), [
+                                    'field'        => $field,
+                                    'storedValue'  => $currentValue,
+                                    'isDisabled'   => $isDisabled,
+                                ])
+                            @else
+                                <p class="text-sm text-gray-500 mb-1">{{ $currentValue }}</p>
+                            @endif
+                        @endif
+                        @if(! $isDisabled)
+                            @php $allowsMultiple = $field->allowsMultipleFiles(); @endphp
+                            <input
+                                type="file"
+                                name="{{ $inputName }}{{ $allowsMultiple ? '[]' : '' }}"
+                                @if($allowsMultiple) multiple @endif
+                                @if($field->is_mandatory && ! $currentValue) required @endif
+                                class="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
+                            />
+                            @if($allowsMultiple && $field->maxFiles() > 1)
+                                <p class="text-xs text-gray-400 mt-1">{{ __('dynafields::dynafields.max_files', ['count' => $field->maxFiles()]) }}</p>
+                            @endif
+                        @endif
 
                     @else
                         <input

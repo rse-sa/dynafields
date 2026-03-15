@@ -8,6 +8,10 @@ return new class extends Migration
 {
     public function up(): void
     {
+        if (Schema::hasTable('custom_field_values')) {
+            return;
+        }
+
         Schema::create('custom_field_values', function (Blueprint $table) {
             $table->ulid('id')->primary();
 

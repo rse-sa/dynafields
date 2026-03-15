@@ -1,0 +1,373 @@
+---
+name: dynafields
+description: >
+  The dynafields package (rse-sa/dynafields) adds flexible, admin-managed custom fields to any
+  Eloquent model in Laravel. Always activate this skill when the user mentions: custom fields,
+  dynamic fields, HasCustomFields, DefinesCustomFields, CustomField model, CustomFieldValue,
+  the Livewire dynafields form component, field scoping (global/type/instance/section scope),
+  SupportsFieldInheritance, field dependencies (depends_on_field_id, isDependencyMet),
+  file upload/retrieve handlers (uploadFileUsing/retrieveFileUsing), the `extra` column on
+  field values, or the `scope`/`active`/`searchable` columns. Also trigger when the user is
+  saving custom field values to a polymorphic subject, syncing fields on a model, building an
+  admin UI for custom field CRUD, or asking how to add user-defined attributes to any model.
+---
+
+# DynaFields — Laravel Custom Fields Package
+
+## Install
+
+```bash
+composer require rse/dynafields
+php artisan dynafields:install   # publishes config + runs migrations
+```
+
+Publish selectively: `--tag=dynafields-config|dynafields-migrations|dynafields-views|dynafields-lang`
+
+**Requirements:** PHP ^8.2, Laravel ^11|^12, Livewire ^4, spatie/laravel-translatable ^6
+
+---
+
+## Traits & Contracts
+
+| Class | Add to | Purpose |
+|---|---|---|
+| `HasCustomFields` | Subject model (e.g. `Invoice`) | Stores/retrieves field values |
+| `DefinesCustomFields` | Owner model (e.g. `Category`) | Owns field definitions for subjects |
+| `SupportsFieldInheritance` (interface) | Hierarchical owner | Cascades ancestor fields |
+
+### HasCustomFields — key methods
+
+```php
+$model->customFieldValues()              // MorphMany → CustomFieldValue
+$model->resolveCustomFields()            // Collection of applicable CustomField
+$model->syncCustomFields(['field_id' => 'value', ...])
+$model->getCustomFieldValue($fieldId)    // string|null
+$model->setCustomFieldValue($fieldId, $value)
+$model->customFieldOwner()              // override → return owner instance
+$model->customFieldScope()              // override → return section scope string (see below)
+```
+
+### DefinesCustomFields — key methods
+
+```php
+$owner->customFields()                          // HasMany of owned fields
+$owner->allCustomFieldsForSubject($subjectType) // resolved set for a type
+```
+
+### SupportsFieldInheritance
+
+```php
+public function getAncestorOwnerIds(): array  // [root_id, ..., self_id]
+```
+
+---
+
+## Field Scoping
+
+### 3-tier owner scope (polymorphic)
+
+| Scope | `owner_type` | `owner_id` | Applies to |
+|---|---|---|---|
+| Global | null | null | every model |
+| Type | `App\Models\Invoice` | null | all instances of that type |
+| Instance | `App\Models\Category` | `<id>` | subjects owned by that instance |
+
+Scopes stack: a subject sees global + its type fields + owner-instance fields (+ ancestor-inherited if owner implements `SupportsFieldInheritance`).
+
+**Query scopes on `CustomField`:**
+```php
+CustomField::global()
+CustomField::forSubjectType(Invoice::class)
+CustomField::forSubject(Invoice::class, $owner)  // all applicable, with inheritance
+```
+
+### Section scope (string)
+
+The `scope` column is a nullable string that partitions fields into named sections:
+
+| `scope` value | Meaning |
+|---|---|
+| `null` | Applies to every section (truly global) |
+| `'contracts'` | Only returned when context is "contracts" |
+| `'hr'` / `'sales'` / … | Other named sections |
+
+**Query scope:**
+```php
+CustomField::forScope('contracts')  // null rows + 'contracts' rows
+```
+
+**Hook in subject model** — override `customFieldScope()` so `resolveCustomFields()` auto-filters:
+```php
+class Document extends Model {
+    use HasCustomFields;
+
+    public function customFieldScope(): ?string
+    {
+        return $this->type;  // e.g. 'contracts', 'taameed', 'documents'
+    }
+}
+```
+
+---
+
+## Field Types
+
+| Type | Notes |
+|---|---|
+| `text` | Single-line string |
+| `textarea` | Multi-line string |
+| `date` | ISO date string |
+| `select` | One of a predefined key list; options stored in `data['options']` |
+| `boolean` | `true`/`false` stored as string `'1'`/`'0'` |
+| `number` | Numeric; `data` may hold `min`, `max`, `step` |
+| `checkbox` | Alias for boolean; rendered as a checkbox |
+| `file` | Upload; `value` = display name; `extra` JSON = path/size/mime/original_name |
+
+---
+
+## CustomField model
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | ulid | primary |
+| `owner_type` / `owner_id` | string\|null | polymorphic scope tier |
+| `scope` | string\|null | section scope; null = all sections |
+| `name` | json | translatable |
+| `description` | json\|null | translatable |
+| `type` | string | see Field Types above |
+| `data` | json\|null | type-specific config (select options, file multi/max, number range) |
+| `metadata` | json\|null | developer-defined extras |
+| `order` | uint\|null | display order; global scope adds `ORDER BY order, created_at` |
+| `default_value` | string\|null | |
+| `active` | bool | default true; **global scope** excludes inactive fields automatically |
+| `searchable` | bool | default false |
+| `is_mandatory` | bool | alias: `required` cast in app subclass |
+| `is_unique` | bool | |
+| `is_printable` | bool | include in exports |
+| `is_fixed` | bool | locked after creation |
+| `depends_on_field_id` | ulid\|null | FK → `custom_fields.id` (nullOnDelete) |
+| `depends_on_condition` | json\|null | `{operator, value}` |
+| `created_by` / `updated_by` | string\|null | user ID strings, no FK constraint |
+
+Soft-deleted. Relationships: `owner()` (morphTo), `values()` (hasMany CustomFieldValue),
+`dependsOnField()` (belongsTo self), `dependentFields()` (hasMany self).
+
+**Create programmatically:**
+```php
+// Text / textarea / date field
+CustomField::create([
+    'name'       => ['en' => 'Notes', 'ar' => 'ملاحظات'],
+    'type'       => 'textarea',
+    'scope'      => 'contracts',     // section scope; null = applies everywhere
+    'owner_type' => Category::class, // instance scope (optional)
+    'owner_id'   => $category->id,
+    'active'     => true,
+    'searchable' => false,
+]);
+
+// Select field — options go in 'data'
+CustomField::create([
+    'name' => ['en' => 'Status', 'ar' => 'الحالة'],
+    'type' => 'select',
+    'data' => ['options' => [
+        ['key' => 'draft',  'label' => ['en' => 'Draft',  'ar' => 'مسودة']],
+        ['key' => 'active', 'label' => ['en' => 'Active', 'ar' => 'نشط']],
+    ]],
+]);
+
+// File field — multiple uploads allowed
+CustomField::create([
+    'name' => ['en' => 'Attachments', 'ar' => 'المرفقات'],
+    'type' => 'file',
+    'data' => ['multiple' => true, 'max_files' => 3],
+]);
+
+// Dependent field — only shown when parent equals 'active'
+CustomField::create([
+    'name'                 => ['en' => 'Expiry Date', 'ar' => 'تاريخ الانتهاء'],
+    'type'                 => 'date',
+    'depends_on_field_id'  => $parentField->id,
+    'depends_on_condition' => ['operator' => 'equals', 'value' => 'active'],
+]);
+```
+
+---
+
+## Field Dependencies
+
+A field may be conditionally shown/required based on the value of another field.
+
+```php
+$field->hasDependency(): bool
+$field->getDependencyConfig(): array   // ['field_id', 'operator', 'value']
+$field->isDependencyMet(mixed $parentValue): bool
+```
+
+**Supported operators:**
+
+| Operator | Meaning |
+|---|---|
+| `equals` / `not_equals` | String equality |
+| `contains` / `not_contains` | Substring check |
+| `greater_than` / `less_than` | Numeric comparison |
+| `greater_or_equal` / `less_or_equal` | Numeric comparison |
+| `after` / `before` | Date comparison |
+| `is_empty` / `is_not_empty` | Presence check |
+| `checked` / `unchecked` | Boolean field state |
+
+---
+
+## CustomFieldValue model
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | ulid | primary |
+| `subject_type` | string | morph type |
+| `subject_id` | string | morph id |
+| `custom_field_id` | ulid | FK → custom_fields |
+| `value` | text\|null | plain string value (all types) |
+| `extra` | json\|null | file metadata: `path`, `original_name`, `size`, `mime` |
+
+Unique constraint: `(subject_type, subject_id, custom_field_id)`.
+
+**File-specific helpers:**
+```php
+$cfv->getFilePath()      // extra['path']
+$cfv->getFileName()      // extra['original_name']
+$cfv->getFileSize()      // extra['size']
+$cfv->getFileUrl()       // calls registered retrieveFileUsing handler
+```
+
+---
+
+## File Upload Handlers
+
+File handling is app-specific. Register closures in a service provider:
+
+```php
+use RSE\DynaFields\Models\CustomFieldValue;
+
+// In AppServiceProvider::boot():
+CustomFieldValue::uploadFileUsing(function (CustomField $field, mixed $rawValue, Model $subject): string {
+    // $rawValue is the UploadedFile instance
+    // Return stored path / identifier stored in value + extra['path']
+    return $rawValue->store('custom-fields', 'local');
+});
+
+CustomFieldValue::retrieveFileUsing(function (CustomField $field, string $storedValue, Model $subject): mixed {
+    // Return a URL, stream, or any representation
+    return Storage::url($storedValue);
+});
+```
+
+If a `file` field is used without registering handlers, a `RuntimeException` is thrown.
+
+---
+
+## Livewire Form Component
+
+```blade
+@livewire('dynafields::form', [
+    'subject' => $model,          {{-- the record being edited/created --}}
+    'action'  => 'create',        {{-- 'create' | 'edit' --}}
+    'owner'   => $ownerModel,     {{-- optional: pre-select owner --}}
+])
+```
+
+**Dynamic owner change** (e.g. category select changes):
+```js
+$dispatch('dynafields:owner-change', {
+    ownerType: 'App\\Models\\Category',
+    ownerKey: categoryId
+})
+```
+The component re-resolves fields and resets values automatically.
+
+Field state flags on each resolved field: `is_global`, `is_type_scoped`, `is_inherited`, `is_readonly`.
+Fixed fields (`is_fixed`) render as disabled in edit mode.
+
+---
+
+## Admin Routes (CRUD)
+
+Enabled by default at `/dynafields` (middleware: `web`, `auth`):
+
+```
+GET    /dynafields/create
+POST   /dynafields
+GET    /dynafields/{customField}/edit
+PUT    /dynafields/{customField}
+DELETE /dynafields/{customField}
+```
+
+Disable if the host app provides its own routes: `'routes' => ['enabled' => false]`.
+
+---
+
+## Config (`config/dynafields.php`)
+
+```php
+'field_types' => ['text', 'textarea', 'date', 'select', 'boolean', 'number', 'checkbox', 'file'],
+'translatable' => true,
+'models' => [
+    'custom_field'       => \RSE\DynaFields\Models\CustomField::class,
+    'custom_field_value' => \RSE\DynaFields\Models\CustomFieldValue::class,
+],
+'routes' => [
+    'enabled'    => true,
+    'prefix'     => 'dynafields',
+    'name'       => 'dynafields.',
+    'middleware' => ['web', 'auth'],
+],
+'livewire' => [
+    'enabled'            => true,
+    'owner_change_event' => 'dynafields:owner-change',
+],
+// Blade view to render existing file preview in the Livewire form (null = default)
+'file_preview_view' => null,
+```
+
+**Override models** to extend with app-specific logic:
+```php
+'models' => [
+    'custom_field'       => \App\Models\CustomField::class,
+    'custom_field_value' => \App\Models\CustomFieldValue::class,
+],
+```
+
+---
+
+## Typical Setup Pattern
+
+```php
+// Subject model
+use RSE\DynaFields\Traits\HasCustomFields;
+class Invoice extends Model {
+    use HasCustomFields;
+
+    // optional: link to owner for instance-scoped fields
+    public function customFieldOwner(): ?Model { return $this->client; }
+
+    // optional: section scope (null = all sections apply)
+    public function customFieldScope(): ?string { return 'invoices'; }
+}
+
+// Owner model
+use RSE\DynaFields\Traits\DefinesCustomFields;
+class Client extends Model {
+    use DefinesCustomFields;
+}
+
+// Hierarchical owner
+use RSE\DynaFields\Contracts\SupportsFieldInheritance;
+class Department extends Model implements SupportsFieldInheritance {
+    use DefinesCustomFields;
+    public function getAncestorOwnerIds(): array { /* root → self */ }
+}
+
+// Controller: save submitted values
+$invoice->syncCustomFields($request->validated('fields', []));
+
+// Blade template
+@livewire('dynafields::form', ['subject' => $invoice, 'action' => 'edit'])
+```

@@ -8,7 +8,7 @@ return [
     |--------------------------------------------------------------------------
     | Available field types. Add or remove types as needed.
     */
-    'field_types' => ['text', 'textarea', 'date', 'select', 'boolean'],
+    'field_types' => ['text', 'textarea', 'date', 'select', 'boolean', 'number', 'checkbox', 'file'],
 
     /*
     |--------------------------------------------------------------------------
@@ -50,8 +50,23 @@ return [
     | owner changes (e.g. user picks a different group for the asset).
     */
     'livewire' => [
-        'enabled'          => true,
+        'enabled'            => true,
         'owner_change_event' => 'dynafields:owner-change',
     ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | File Preview View
+    |--------------------------------------------------------------------------
+    | View used to display an existing file value (download link, preview, etc.)
+    | in the Livewire form component when editing a record that already has a
+    | file uploaded. The view receives $field, $value (CustomFieldValue), and
+    | $isDisabled variables.
+    |
+    | Set to null to show only the stored filename as plain text.
+    |
+    | Example: 'components.dynafields-file-preview'
+    */
+    'file_preview_view' => null,
 
 ];

@@ -1,6 +1,6 @@
 # DynaFields : Dynamic Custom Fields For Laravel
 
-Add flexible, admin-managed custom fields to any model in minutes, with support for field inheritance, multi-locale names, and a ready-to-use Livewire form component.
+Add flexible, admin-managed custom fields to any model in minutes, with support for field scoping by section, owner-based inheritance, conditional field dependencies, file upload delegation, multi-locale names, and a ready-to-use Livewire form component.
 
 ---
 
@@ -42,15 +42,55 @@ $invoice->syncCustomFields($request->validated('fields', []));
 
 ---
 
-## Field Scoping (3 tiers)
+## Field Types
 
-DynaFields uses a 3-tier scoping model on the `custom_fields` table:
+| Type       | Input rendered                              |
+|------------|---------------------------------------------|
+| `text`     | `<input type="text">`                       |
+| `textarea` | `<textarea>`                                |
+| `date`     | `<input type="date">`                       |
+| `number`   | `<input type="number">`                     |
+| `select`   | `<select>` with options from `data.options` |
+| `boolean`  | `<input type="checkbox">` (yes/no)          |
+| `checkbox` | `<input type="checkbox">`                   |
+| `file`     | `<input type="file">` with custom handler   |
 
-| `owner_type`            | `owner_id` | Scope                                                         |
-|-------------------------|------------|---------------------------------------------------------------|
-| `null`                  | `null`     | **Global** — shown on all models                              |
-| `'App\Models\Invoice'`  | `null`     | **Type-scoped** — shown on all Invoice records                |
-| `'App\Models\Category'` | `'abc...'` | **Instance-scoped** — shown on records owned by that Category |
+---
+
+## Field Scoping (3 tiers + section scope)
+
+DynaFields uses a 3-tier owner model on the `custom_fields` table, combined with an optional `scope` string for section-based filtering:
+
+| `owner_type`            | `owner_id` | `scope`      | Applies to                                    |
+|-------------------------|------------|--------------|-----------------------------------------------|
+| `null`                  | `null`     | `null`       | **Truly global** — every model, every section |
+| `null`                  | `null`     | `'contracts'`| **Section-global** — all models in that section |
+| `'App\\Models\\Invoice'`| `null`     | any          | **Type-scoped** — all Invoice records         |
+| `'App\\Models\\Category'`| `'abc..'` | any          | **Instance-scoped** — records under that Category |
+
+Fields with `scope = null` always appear regardless of the active section. Fields with a specific `scope` only appear when the subject reports the same scope via `customFieldScope()`.
+
+---
+
+## Section Scoping
+
+Override `customFieldScope()` in your model to tell DynaFields which section the model belongs to:
+
+```php
+class Document extends Model
+{
+    use HasCustomFields;
+
+    public function customFieldScope(): ?string
+    {
+        return $this->type; // e.g. 'contracts', 'hr', 'sales'
+    }
+}
+```
+
+When resolving fields, DynaFields automatically includes:
+- Fields with `scope = null` (truly global)
+- Fields whose `scope` matches what `customFieldScope()` returns
 
 ---
 
@@ -107,6 +147,149 @@ Fields defined on parent Groups automatically cascade to their children.
 
 ---
 
+## Field Dependencies (Conditional Fields)
+
+Fields can be conditionally shown based on another field's value. Configure via `depends_on_field_id` and `depends_on_condition`:
+
+```php
+$field->depends_on_field_id  // ULID of the parent field
+$field->depends_on_condition // ['operator' => 'equals', 'value' => 'yes']
+```
+
+Check in PHP whether a dependency is met:
+
+```php
+$parentValue = $parentFieldValue->value;
+
+if ($field->isDependencyMet($parentValue)) {
+    // show this field
+}
+```
+
+Available operators:
+
+| Operator          | Description                        |
+|-------------------|------------------------------------|
+| `equals`          | Exact match                        |
+| `not_equals`      | Not equal                          |
+| `contains`        | String contains                    |
+| `not_contains`    | String does not contain            |
+| `greater_than`    | Numeric greater than               |
+| `less_than`       | Numeric less than                  |
+| `greater_or_equal`| Numeric >=                         |
+| `less_or_equal`   | Numeric <=                         |
+| `after`           | Date after                         |
+| `before`          | Date before                        |
+| `is_empty`        | Value is null or empty string      |
+| `is_not_empty`    | Value is not null or empty         |
+| `checked`         | Checkbox/boolean is true           |
+| `unchecked`       | Checkbox/boolean is false          |
+
+---
+
+## File Upload Delegation
+
+The `file` field type delegates upload and retrieval to app-defined handlers. Register them once in a service provider:
+
+```php
+use RSE\DynaFields\Models\CustomFieldValue;
+use Illuminate\Support\Facades\Storage;
+
+// In AppServiceProvider::boot()
+
+CustomFieldValue::uploadFileUsing(
+    function (CustomField $field, mixed $rawValue, Model $subject): string {
+        return Storage::putFile('custom-fields/' . $subject->getKey(), $rawValue);
+    }
+);
+
+CustomFieldValue::retrieveFileUsing(
+    function (CustomField $field, string $storedValue, Model $subject): string {
+        return Storage::url($storedValue);
+    }
+);
+```
+
+Both closures receive:
+- `$field` — the `CustomField` model instance (access type-specific config via `$field->metadata`)
+- `$rawValue` / `$storedValue` — the uploaded file object or stored identifier
+- `$subject` — the model instance that owns the value
+
+If a `file` field is used without registering handlers, a `RuntimeException` is thrown.
+
+File metadata is stored automatically in the `extra` JSON column:
+
+```php
+$value->getFilePath();    // stored path/identifier
+$value->getFileName();    // original filename
+$value->getFileSize();    // file size in bytes
+$value->getFileUrl();     // calls retrieveFileUsing handler
+```
+
+### Multiple File Uploads
+
+Enable multiple files by setting `data.multiple` and optionally `data.max_files` when creating or updating a `file` field:
+
+```php
+$field->data = [
+    'multiple'  => true,
+    'max_files' => 5,
+];
+```
+
+Helper methods:
+
+```php
+$field->allowsMultipleFiles();  // bool
+$field->maxFiles();             // int, always >= 1
+$field->getFileOptions();       // ['multiple' => bool, 'max_files' => int]
+```
+
+When `multiple=true`, the upload handler receives an array of `UploadedFile` objects. Store each file and return the appropriate stored value (e.g. a JSON string of paths). The `extra` column can hold an array of metadata objects.
+
+---
+
+### Customizing the File Preview (in forms)
+
+When editing a record that already has a file uploaded, the form component shows the stored filename by default. To customize this (e.g. show a download link or thumbnail), register a view in the config:
+
+```php
+// config/dynafields.php
+'file_preview_view' => 'components.my-file-preview',
+```
+
+Your preview view receives:
+
+| Variable       | Type          | Description                                |
+|----------------|---------------|--------------------------------------------|
+| `$field`       | `CustomField` | The field model                            |
+| `$storedValue` | `string`      | The stored value (path/identifier)         |
+| `$isDisabled`  | `bool`        | Whether editing is disabled for this field |
+
+Example:
+
+```blade
+{{-- resources/views/components/my-file-preview.blade.php --}}
+<a href="{{ route('files.download', $storedValue) }}" class="text-blue-600 underline text-sm">
+    Download current file
+</a>
+```
+
+---
+
+## Field Flags
+
+| Column         | Default | Description                                      |
+|----------------|---------|--------------------------------------------------|
+| `active`       | `true`  | Inactive fields are hidden via global scope      |
+| `searchable`   | `false` | Hint to include this field in search indexing    |
+| `is_mandatory` | `false` | Field is required                                |
+| `is_unique`    | `false` | Value must be unique per subject                 |
+| `is_printable` | `true`  | Include in printable views                       |
+| `is_fixed`     | `false` | Value cannot be changed after creation           |
+
+---
+
 ## Livewire Form Component
 
 The `dynafields::form` component renders field inputs in any form.
@@ -153,6 +336,14 @@ $model->customFieldValues()->with('field')->get();
 
 // Resolve all applicable fields for this model
 $model->resolveCustomFields();
+
+// Check field dependency
+$field->hasDependency();
+$field->getDependencyConfig();   // ['field_id', 'operator', 'value']
+$field->isDependencyMet($parentValue);
+
+// Field type label (localized)
+$field->typeLabel();
 ```
 
 ---
@@ -164,7 +355,7 @@ Publish the config: `php artisan vendor:publish --tag=dynafields-config`
 ```php
 // config/dynafields.php
 return [
-    'field_types'  => ['text', 'textarea', 'date', 'select', 'boolean'],
+    'field_types'  => ['text', 'textarea', 'date', 'number', 'select', 'boolean', 'checkbox', 'file'],
     'translatable' => true,
     'models' => [
         'custom_field'       => \RSE\DynaFields\Models\CustomField::class,
@@ -207,15 +398,24 @@ Then register your extended model in config:
 
 ---
 
-## Field Types
+## Query Scopes
 
-| Type       | Input rendered                              |
-|------------|---------------------------------------------|
-| `text`     | `<input type="text">`                       |
-| `textarea` | `<textarea>`                                |
-| `date`     | `<input type="date">`                       |
-| `select`   | `<select>` with options from `data.options` |
-| `boolean`  | `<input type="checkbox">`                   |
+```php
+// Only active fields (applied as global scope automatically)
+CustomField::withoutGlobalScope('active')->get(); // include inactive
+
+// Filter by section
+CustomField::forScope('contracts')->get();
+
+// Filter by owner type
+CustomField::forSubjectType(Invoice::class)->get();
+
+// All fields for a subject (global + type + owner-scoped + inherited)
+CustomField::forSubject(Invoice::class, $owner)->get();
+
+// Global fields only (no owner)
+CustomField::global()->get();
+```
 
 ---
 

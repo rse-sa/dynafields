@@ -30,16 +30,38 @@ trait HasCustomFields
     }
 
     /**
+     * Override to return the section/scope string for this model.
+     * Fields with scope=null (global) are always included.
+     * Fields with a specific scope are only shown when the scope matches.
+     *
+     * Return null to include all fields regardless of scope.
+     *
+     * Example:
+     *   public function customFieldScope(): ?string { return 'contracts'; }
+     */
+    public function customFieldScope(): ?string
+    {
+        return null;
+    }
+
+    /**
      * Resolve all applicable custom fields for this model instance.
      * Includes: global, type-scoped, and owner instance-scoped (with inheritance).
+     * Filtered by scope if customFieldScope() returns a non-null value.
      */
     public function resolveCustomFields(): Collection
     {
         $fieldModel = config('dynafields.models.custom_field', CustomField::class);
 
-        return $fieldModel::forSubject(static::class, $this->customFieldOwner())
-            ->orderBy('order')
-            ->get();
+        $query = $fieldModel::forSubject(static::class, $this->customFieldOwner());
+
+        $scope = $this->customFieldScope();
+
+        if ($scope !== null) {
+            $query->forScope($scope);
+        }
+
+        return $query->get();
     }
 
     /**

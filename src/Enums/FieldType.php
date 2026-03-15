@@ -9,6 +9,9 @@ enum FieldType: string
     case Date     = 'date';
     case Select   = 'select';
     case Boolean  = 'boolean';
+    case Number   = 'number';
+    case Checkbox = 'checkbox';
+    case File     = 'file';
 
     public function label(): string
     {
@@ -18,6 +21,9 @@ enum FieldType: string
             self::Date     => __('dynafields::dynafields.field_type_date'),
             self::Select   => __('dynafields::dynafields.field_type_select'),
             self::Boolean  => __('dynafields::dynafields.field_type_boolean'),
+            self::Number   => __('dynafields::dynafields.field_type_number'),
+            self::Checkbox => __('dynafields::dynafields.field_type_checkbox'),
+            self::File     => __('dynafields::dynafields.field_type_file'),
         };
     }
 
