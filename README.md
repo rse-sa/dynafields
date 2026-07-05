@@ -2,6 +2,7 @@
 
 Add flexible, admin-managed custom fields to any model in minutes, with support for field scoping by section, owner-based inheritance, conditional field dependencies, file upload delegation, multi-locale names, and a ready-to-use Livewire form component.
 
+
 ---
 
 ## Installation
