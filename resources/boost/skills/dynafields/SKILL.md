@@ -121,7 +121,7 @@ class Document extends Model {
 | `boolean` | `true`/`false` stored as string `'1'`/`'0'` |
 | `number` | Numeric; `data` may hold `min`, `max`, `step` |
 | `checkbox` | Alias for boolean; rendered as a checkbox |
-| `file` | Upload; `value` = display name; `extra` JSON = path/size/mime/original_name |
+| `file` | Upload; `value` = stored path/identifier; `extra` JSON = path/size/mime/original_name. Multiple-file inputs rendered as Alpine.js dynamic slots when `data['multiple'] = true`. |
 
 ---
 
@@ -232,11 +232,37 @@ Unique constraint: `(subject_type, subject_id, custom_field_id)`.
 
 **File-specific helpers:**
 ```php
-$cfv->getFilePath()      // extra['path']
-$cfv->getFileName()      // extra['original_name']
-$cfv->getFileSize()      // extra['size']
-$cfv->getFileUrl()       // calls registered retrieveFileUsing handler
+$cfv->getFilePath()                   // extra['path']
+$cfv->getFileName()                   // extra['original_name']
+$cfv->getFileSize()                   // extra['size'] as int
+$cfv->getFileUrl()                    // calls registered retrieveFileUsing handler (throws if unregistered)
+$cfv->retrieveFileValue(?$subject)    // safe wrapper → always returns FileFieldValue DTO (never throws)
 ```
+
+---
+
+## FileFieldValue DTO
+
+`RSE\DynaFields\DTOs\FileFieldValue` is the structured return type for `retrieveFileUsing` handlers.
+
+```php
+new FileFieldValue(
+    name:         'invoice.pdf',          // display name (required)
+    size:         204800,                 // bytes (null = unknown)
+    extension:    'pdf',                  // null = unknown
+    downloadLink: 'https://...',          // null = no link shown
+    date:         Carbon::now(),          // null = not shown
+    model:        $attachmentModel,       // optional — your underlying model
+);
+
+// Convenience factory from CustomFieldValue::$extra:
+FileFieldValue::fromExtra($cfv->extra, $downloadUrl);
+
+// Helpers:
+$fv->formattedSize()   // e.g. "1.2 MB", "" if size is null
+```
+
+The Livewire form passes `FileFieldValue` to the file preview view. The built-in default card shows icon + name (linked if `downloadLink` set) + size + date + download button.
 
 ---
 
@@ -245,22 +271,34 @@ $cfv->getFileUrl()       // calls registered retrieveFileUsing handler
 File handling is app-specific. Register closures in a service provider:
 
 ```php
+use RSE\DynaFields\DTOs\FileFieldValue;
 use RSE\DynaFields\Models\CustomFieldValue;
 
 // In AppServiceProvider::boot():
 CustomFieldValue::uploadFileUsing(function (CustomField $field, mixed $rawValue, Model $subject): string {
     // $rawValue is the UploadedFile instance
-    // Return stored path / identifier stored in value + extra['path']
+    // Return stored path / identifier (saved to value + extra['path'])
     return $rawValue->store('custom-fields', 'local');
 });
 
-CustomFieldValue::retrieveFileUsing(function (CustomField $field, string $storedValue, Model $subject): mixed {
-    // Return a URL, stream, or any representation
-    return Storage::url($storedValue);
+// Preferred: return FileFieldValue for rich built-in preview
+CustomFieldValue::retrieveFileUsing(function (CustomField $field, string $storedValue, Model $subject): FileFieldValue {
+    return new FileFieldValue(
+        name:         basename($storedValue),
+        size:         Storage::size($storedValue),
+        extension:    pathinfo($storedValue, PATHINFO_EXTENSION),
+        downloadLink: Storage::url($storedValue),
+        date:         Carbon::now(),
+    );
+});
+
+// Backward compat: returning a plain string URL still works
+CustomFieldValue::retrieveFileUsing(function ($field, $storedValue, $subject): string {
+    return Storage::url($storedValue);   // wrapped in FileFieldValue::fromExtra() automatically
 });
 ```
 
-If a `file` field is used without registering handlers, a `RuntimeException` is thrown.
+`retrieveFileValue()` on `CustomFieldValue` is the safe wrapper used by the form — it never throws. `getFileUrl()` / `retrieveFile()` call the handler directly and throw `RuntimeException` when unregistered.
 
 ---
 
@@ -323,8 +361,17 @@ Disable if the host app provides its own routes: `'routes' => ['enabled' => fals
     'enabled'            => true,
     'owner_change_event' => 'dynafields:owner-change',
 ],
-// Blade view to render existing file preview in the Livewire form (null = default)
+// null = built-in card (icon + name + size + date + download button)
+// Set to a view path to use a custom preview view instead
 'file_preview_view' => null,
+```
+
+**Custom `file_preview_view`** receives:
+```php
+$field        // CustomField model
+$fileValue    // FileFieldValue DTO
+$storedValue  // raw stored string (backward compat)
+$isDisabled   // bool
 ```
 
 **Override models** to extend with app-specific logic:

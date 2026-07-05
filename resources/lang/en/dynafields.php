@@ -33,6 +33,7 @@ return [
     'field_file_multiple'    => 'Allow Multiple Files',
     'field_file_max_files'   => 'Maximum Files',
     'max_files'              => 'Maximum :count file(s)',
+    'add_file'               => 'Add another file',
 
     'field_active'           => 'Active',
     'field_searchable'       => 'Searchable',

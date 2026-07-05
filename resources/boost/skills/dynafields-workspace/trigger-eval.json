@@ -1,0 +1,23 @@
+[
+  {"query": "how do I add custom fields to my Invoice model using dynafields? I want admins to be able to define text, select, and date fields at runtime", "should_trigger": true},
+  {"query": "I need to save a CustomFieldValue for a document — should I use subject_type/subject_id or document_id? We just migrated to the polymorphic approach", "should_trigger": true},
+  {"query": "how do I register uploadFileUsing for file type custom fields in dynafields? The docs say I need to do it in a service provider but I'm not sure of the signature", "should_trigger": true},
+  {"query": "the Livewire dynafields form isn't showing my file field type at all, and I think I need to configure file_preview_view in the config — how does that work?", "should_trigger": true},
+  {"query": "I want to add a depends_on_condition so that a 'Reason' field only appears when the 'Status' field equals 'cancelled'. What operators does isDependencyMet support?", "should_trigger": true},
+  {"query": "I have custom fields scoped per section — contracts fields shouldn't appear on documents. how do I use the scope column and customFieldScope() to filter them correctly?", "should_trigger": true},
+  {"query": "my custom field with active=false is still showing up in the Livewire form even though the global scope should exclude it — is there something wrong with how I'm querying CustomField?", "should_trigger": true},
+  {"query": "I need some custom fields to apply to ALL Category instances and others to apply only to one specific category (owner_id). how does the 3-tier scoping work in dynafields?", "should_trigger": true},
+  {"query": "I'm building a Department model that's hierarchical — child departments should inherit parent fields. how do I implement SupportsFieldInheritance and getAncestorOwnerIds?", "should_trigger": true},
+  {"query": "how do I call syncCustomFields() after saving an invoice and where does the field_id → value map come from in the submitted form data?", "should_trigger": true},
+
+  {"query": "I want to add custom validation rules to a Form Request in Laravel — specifically a rule that checks the value against our database before saving", "should_trigger": false},
+  {"query": "how do I add computed attributes (accessors/mutators) to an Eloquent model? I need a fullName accessor that combines first_name and last_name", "should_trigger": false},
+  {"query": "how do I store file uploads from a Livewire form to S3? I'm using Laravel Storage::disk('s3') and need to get the public URL back", "should_trigger": false},
+  {"query": "I need a polymorphic relationship where a Comment can belong to either a Post or a Video. how do I set up morphTo/morphMany in Eloquent?", "should_trigger": false},
+  {"query": "how do I let admins add new columns to the database via a UI? I'm thinking of a migration builder or maybe JSON columns", "should_trigger": false},
+  {"query": "I'm building a settings page where admins can toggle feature flags and configure app-wide options — what's the best way to store these in Laravel?", "should_trigger": false},
+  {"query": "how do I add a searchable scope to my Product model so I can filter by name, sku, and description with a single query builder call?", "should_trigger": false},
+  {"query": "I need conditional field visibility in an Alpine.js form — show field B only when field A equals 'yes'. how do I do this with x-show?", "should_trigger": false},
+  {"query": "how do I automatically set created_by and updated_by on every model save using an Eloquent observer?", "should_trigger": false},
+  {"query": "building a Livewire component with a dropdown select that loads options from an API on mount — how do I handle the loading state?", "should_trigger": false}
+]

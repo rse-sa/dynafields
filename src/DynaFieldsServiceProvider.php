@@ -17,6 +17,7 @@ class DynaFieldsServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        $this->loadMigrationsFrom(__DIR__ . '/../database/migrations');
         $this->loadViewsFrom(__DIR__ . '/../resources/views', 'dynafields');
         $this->loadTranslationsFrom(__DIR__ . '/../resources/lang', 'dynafields');
 
@@ -31,10 +32,6 @@ class DynaFieldsServiceProvider extends ServiceProvider
         $this->publishes([
             __DIR__ . '/../config/dynafields.php' => config_path('dynafields.php'),
         ], 'dynafields-config');
-
-        $this->publishes([
-            __DIR__ . '/../database/migrations' => database_path('migrations'),
-        ], 'dynafields-migrations');
 
         $this->publishes([
             __DIR__ . '/../resources/views' => resource_path('views/vendor/dynafields'),

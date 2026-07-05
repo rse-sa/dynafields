@@ -53,7 +53,7 @@ trait HasCustomFields
     {
         $fieldModel = config('dynafields.models.custom_field', CustomField::class);
 
-        $query = $fieldModel::forSubject(static::class, $this->customFieldOwner());
+        $query = $fieldModel::forSubject($this->getMorphClass(), $this->customFieldOwner());
 
         $scope = $this->customFieldScope();
 

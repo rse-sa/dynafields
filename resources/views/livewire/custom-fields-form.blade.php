@@ -53,28 +53,37 @@
                         >{{ $currentValue }}</textarea>
 
                     @elseif($field->type === 'file')
-                        @if($currentValue)
+                        @php $fileValue = $fileValues[$field->getKey()] ?? null; @endphp
+                        @if($fileValue !== null)
                             @if(config('dynafields.file_preview_view'))
                                 @include(config('dynafields.file_preview_view'), [
                                     'field'        => $field,
+                                    'fileValue'    => $fileValue,
                                     'storedValue'  => $currentValue,
                                     'isDisabled'   => $isDisabled,
                                 ])
                             @else
-                                <p class="text-sm text-gray-500 mb-1">{{ $currentValue }}</p>
+                                @include('dynafields::livewire.partials.file-preview', [
+                                    'fileValue'  => $fileValue,
+                                    'isDisabled' => $isDisabled,
+                                ])
                             @endif
                         @endif
                         @if(! $isDisabled)
-                            @php $allowsMultiple = $field->allowsMultipleFiles(); @endphp
-                            <input
-                                type="file"
-                                name="{{ $inputName }}{{ $allowsMultiple ? '[]' : '' }}"
-                                @if($allowsMultiple) multiple @endif
-                                @if($field->is_mandatory && ! $currentValue) required @endif
-                                class="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
-                            />
-                            @if($allowsMultiple && $field->maxFiles() > 1)
-                                <p class="text-xs text-gray-400 mt-1">{{ __('dynafields::dynafields.max_files', ['count' => $field->maxFiles()]) }}</p>
+                            @if($field->allowsMultipleFiles())
+                                @include('dynafields::livewire.partials.file-multi-input', [
+                                    'inputName'   => $inputName,
+                                    'maxFiles'    => $field->maxFiles(),
+                                    'isMandatory' => $field->is_mandatory,
+                                    'hasExisting' => (bool) $currentValue,
+                                ])
+                            @else
+                                <input
+                                    type="file"
+                                    name="{{ $inputName }}"
+                                    @if($field->is_mandatory && ! $currentValue) required @endif
+                                    class="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
+                                />
                             @endif
                         @endif
 

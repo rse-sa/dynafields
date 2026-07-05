@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 use RSE\DynaFields\Concerns\HasUlidPrimaryKey;
+use RSE\DynaFields\DTOs\FileFieldValue;
 use RuntimeException;
 
 class CustomFieldValue extends Model
@@ -121,5 +122,27 @@ class CustomFieldValue extends Model
     public function getFileUrl(): mixed
     {
         return $this->retrieveFile();
+    }
+
+    /**
+     * Retrieve file metadata as a FileFieldValue DTO, never throwing.
+     * If the retrieve handler returns a FileFieldValue, it is returned as-is.
+     * If it returns a string URL, the DTO is built from stored extra metadata.
+     * If no handler is registered, the DTO is built from extra metadata only (no download link).
+     */
+    public function retrieveFileValue(?Model $subject = null): FileFieldValue
+    {
+        if (static::$retrieveHandler !== null) {
+            $resolvedSubject = $subject ?? $this->subject;
+            $result          = (static::$retrieveHandler)($this->field, $this->value, $resolvedSubject);
+
+            if ($result instanceof FileFieldValue) {
+                return $result;
+            }
+
+            return FileFieldValue::fromExtra($this->extra ?? [], is_string($result) ? $result : null);
+        }
+
+        return FileFieldValue::fromExtra($this->extra ?? []);
     }
 }

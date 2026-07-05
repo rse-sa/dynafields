@@ -74,8 +74,32 @@ class CustomFieldsForm extends Component
         return view('dynafields::livewire.custom-fields-form', [
             'fields'     => $fields,
             'valueArray' => $this->values->pluck('value', 'custom_field_id'),
+            'fileValues' => $this->resolveFileValues($fields),
             'action'     => $this->action,
         ]);
+    }
+
+    private function resolveFileValues(Collection $fields): array
+    {
+        $fileFieldIds = $fields->where('type', 'file')->pluck('id')->all();
+
+        if (empty($fileFieldIds) || $this->action === 'create') {
+            return [];
+        }
+
+        $relevant = $this->values->whereIn('custom_field_id', $fileFieldIds);
+
+        if ($relevant->isEmpty()) {
+            return [];
+        }
+
+        $relevant->loadMissing('field');
+
+        $subject = $this->subjectKey ? ($this->subjectType)::find($this->subjectKey) : null;
+
+        return $relevant
+            ->mapWithKeys(fn ($cfv) => [$cfv->custom_field_id => $cfv->retrieveFileValue($subject)])
+            ->all();
     }
 
     private function resolveOwner(): ?Model

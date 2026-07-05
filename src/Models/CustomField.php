@@ -114,7 +114,7 @@ class CustomField extends Model
 
             // 3. Instance-scoped from owner + optional inheritance
             if ($owner !== null) {
-                $ownerClass = get_class($owner);
+                $ownerClass = $owner->getMorphClass();
 
                 $q->orWhere(function (Builder $inner) use ($ownerClass, $owner) {
                     $inner->where('owner_type', $ownerClass)

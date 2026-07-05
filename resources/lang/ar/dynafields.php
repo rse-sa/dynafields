@@ -33,6 +33,7 @@ return [
     'field_file_multiple'    => 'السماح برفع ملفات متعددة',
     'field_file_max_files'   => 'الحد الأقصى للملفات',
     'max_files'              => 'الحد الأقصى :count ملف/ملفات',
+    'add_file'               => 'إضافة ملف آخر',
 
     'field_active'           => 'نشط',
     'field_searchable'       => 'قابل للبحث',

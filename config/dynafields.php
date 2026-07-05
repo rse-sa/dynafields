@@ -58,12 +58,18 @@ return [
     |--------------------------------------------------------------------------
     | File Preview View
     |--------------------------------------------------------------------------
-    | View used to display an existing file value (download link, preview, etc.)
-    | in the Livewire form component when editing a record that already has a
-    | file uploaded. The view receives $field, $value (CustomFieldValue), and
-    | $isDisabled variables.
+    | View used to display an existing file when editing a record. When null,
+    | the built-in card (icon + name + size + date + download button) is used.
     |
-    | Set to null to show only the stored filename as plain text.
+    | Custom views receive:
+    |   $field        — CustomField model
+    |   $fileValue    — FileFieldValue DTO (name, size, extension, downloadLink, date, model)
+    |   $storedValue  — raw stored string (backward compat)
+    |   $isDisabled   — bool
+    |
+    | The DTO is populated by your retrieveFileUsing() handler. Returning a
+    | FileFieldValue from the handler gives you full control over all fields.
+    | Returning a plain URL string builds a minimal DTO from stored metadata.
     |
     | Example: 'components.dynafields-file-preview'
     */

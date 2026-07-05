@@ -8,7 +8,7 @@ class InstallCommand extends Command
 {
     protected $signature   = 'dynafields:install';
 
-    protected $description = 'Publish DynaFields config and migrations, then run migrations';
+    protected $description = 'Publish DynaFields config and run its migrations';
 
     public function handle(): void
     {
@@ -16,11 +16,6 @@ class InstallCommand extends Command
 
         $this->call('vendor:publish', [
             '--tag'   => 'dynafields-config',
-            '--force' => false,
-        ]);
-
-        $this->call('vendor:publish', [
-            '--tag'   => 'dynafields-migrations',
             '--force' => false,
         ]);
 
